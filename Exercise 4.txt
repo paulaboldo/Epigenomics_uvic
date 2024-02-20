@@ -1,0 +1,152 @@
+####EXERCISE 4###### 
+
+# Enter to the folder where
+
+cd epigenomics_uvic/
+
+# Activate the docker
+
+sudo docker run -v $PWD:$PWD -w $PWD --rm -it dgarrimar/epigenomics_course
+
+# Enter to the correspond folder
+
+cd ATAC-seq/
+
+# Go to the ENCODE project to find experiments and programmatically download files from the ENCODE portal
+
+ ../bin/download.metadata.sh "https://www.encodeproject.org/metadata/ replicates.library.biosample.donor.uuid=d370683e-81e7-473f-8475-7716d027849b&status=released&status=submitted&status=in+progress&assay_slims=DNA+accessibility&assay_title=ATAC-seq&biosample_ontology.term_name=sigmoid+colon&biosample_ontology.term_name=stomach&type=Experiment"
+
+# To see how the metadata it's structured
+
+head -1 metadata.tsv | awk 'BEGIN{FS=OFS="\t"}{for (i=1;i<=NF;i++){print $i, i}}'
+
+# Create a new folder where the bigBeds files where downloaded
+
+mkdir analyses
+
+mkdir data
+
+mkdir data/bigBed.files
+
+# Creating bigBed peak calling files (H3K4me3, bigBed narrow, pseudoreplicates peaks, assembly GRCh38, most recent file for each tissue):
+
+grep -F ATAC-seq metadata.tsv |\
+grep -F "bigBed_narrowPeak" |\
+grep -F "pseudoreplicated_peaks" |\
+grep -F "GRCh38" |\
+awk 'BEGIN{FS=OFS="\t"}{print $1, $11}' |\
+sort -k2,2 -k1,1r |\
+sort -k2,2 -u > analyses/bigBed.peaks.ids.txt
+
+# Download the data that matches the parameters of bigBed.peaks.ids.txt
+
+cut -f1 analyses/bigBed.peaks.ids.txt |\
+while read filename; do
+  wget -P data/bigBed.files "https://www.encodeproject.org/files/$filename/@@download/$filename.bigBed"
+done
+
+# To check their integrity by verifying their MD5 hash (column 46 of the metadata):
+
+for file_type in bigBed; do
+
+  # retrieve original MD5 hash from the metadata
+  ../bin/selectRows.sh <(cut -f1 analyses/"$file_type".*.ids.txt) metadata.tsv | cut -f1,46 > data/"$file_type".files/md5sum.txt
+
+  # compute MD5 hash on the downloaded files 
+  cat data/"$file_type".files/md5sum.txt |\
+  while read filename original_md5sum; do 
+    md5sum data/"$file_type".files/"$filename"."$file_type" |\
+    awk -v filename="$filename" -v original_md5sum="$original_md5sum" 'BEGIN{FS=" "; OFS="\t"}{print filename, original_md5sum, $1}' 
+  done > tmp 
+  mv tmp data/"$file_type".files/md5sum.txt
+
+  # make sure there are no files for which original and computed MD5 hashes differ
+  awk '$2!=$3' data/"$file_type".files/md5sum.txt
+
+done
+
+# Create folders
+
+mkdir analyses/peaks.analysis
+
+mkdir data/bed.files
+
+#Convert bigBed files of promoter regions peaks to BED files with the bigBedToBed command:
+
+cut -f1 analyses/bigBed.peaks.ids.txt |\
+while read filename; do
+  bigBedToBed data/bigBed.files/"$filename".bigBed data/bed.files/"$filename".bed
+done
+
+# Create the folder for annotation files
+
+mkdir annotation
+
+# Recover the .bed for annotated regions of promoters regions we used on Chip-seq experiment
+
+cp ../ChIP-seq/annotation/gencode.v24.protein.coding.non.redundant.TSS.bed annotation
+
+# Get the number of peaks that intersect promoter regions using bedtools -intersect function
+
+cut -f-2 analyses/bigBed.peaks.ids.txt |\
+while read filename tissue; do 
+  echo "$tissue" 
+  bedtools intersect -a data/bed.files/"$filename".bed -b  annotation/gencode.v24.protein.coding.non.redundant.TSS.bed -u |\
+  wc -l
+done
+
+# Output
+# sigmoid_colon
+# 47871
+# stomach
+# 44749
+
+# Recover the .bed for annotated regions of gene body we used on Chip-seq experiment
+
+cp ../ChIP-seq/annotation/gencode.v24.protein.coding.gene.body.bed annotation
+
+# Run bedtools -intersect -v for get genes that fall outside the coordinates
+
+cut -f-2 analyses/bigBed.peaks.ids.txt |\
+while read filename tissue; do 
+  echo "$tissue"
+  bedtools intersect -a data/bed.files/"$filename".bed -b  annotation/gencode.v24.protein.coding.gene.body.bed -v |\
+  wc -l
+done
+
+# Output
+# sigmoid_colon
+# 37035
+# stomach
+# 34537
+
+
+# We save it in a txt
+
+cut -f-2 analyses/bigBed.peaks.ids.txt | \
+while read filename tissue; do
+    bedtools intersect -a data/bed.files/"$filename".bed \
+                       -b annotation/gencode.v24.protein.coding.gene.body.bed \
+                       -v > analyses/peaks.analysis/"$tissue".outside.gene.body.txt
+done
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

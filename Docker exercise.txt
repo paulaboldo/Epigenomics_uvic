@@ -1,0 +1,202 @@
+## DOCKER EXERCISE
+
+# Build a Docker image for the seqClass.py script written during the Git hands-on. Make sure you can run the script within the corresponding Docker container and upload the image to DockerHub.
+#Starting from the script seqClass.py, we create a Dockerfile in the same directory.
+
+# Dockerfile to create the image
+
+# Start from debian linux image (DockerHub)
+FROM python:3
+
+# Add custom label
+LABEL maintainer "Paula Boldo <paula.boldo.cobo@gmail.com>" \
+      version "0.1" \
+      description "Docker image to use python script seqClass.py used in class (to know if a fasta sequence is DNA or RNA and to find motifs in the input sequence)"
+
+# Install python and argparse
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir argparse 
+
+CMD [ "python", "./scripts/seqClass.py" ]
+
+# Make the folder '/scripts' in the container
+RUN mkdir /scripts
+
+# Copy 'scripts/script.R' to the folder '/scripts' in the container
+ADD scripts/seqClass.py /scripts
+
+# Give execution permissions to script.R
+RUN chmod +x /scripts/seqClass.py
+
+# Add /scripts folder to the PATH environment variable
+ENV PATH="$PATH:/scripts" 
+
+
+## seqClass file
+
+# Create the directory and entering it
+
+mkdir scripts
+
+cd scripts
+
+# Create the file that allow to know the class of a fasta sequence and search a motif in a fasta sequence.
+
+nano seqClass.py
+
+#!/usr/bin/env python
+
+import sys, re
+from argparse import ArgumentParser
+
+# Create an ArgumentParser object with descriptions for command-line arguments
+parser = ArgumentParser(description = 'Classify a sequence as DNA or RNA')
+
+# Define command-line arguments
+parser.add_argument("-s", "--seq", type = str, required = True, help = "Input sequence")
+parser.add_argument("-m", "--motif", type = str, required = False, help = "Motif")
+
+# Check if no command-line arguments are provided, print help, and exit if true
+if len(sys.argv) == 1:
+    parser.print_help()
+    sys.exit(1)
+
+# Parse the command-line arguments
+args = parser.parse_args()
+
+# Convert the sequence to uppercase
+args.seq = args.seq.upper()                 
+
+# Check if the sequence consists of valid DNA or RNA characters
+# The filter for recognizing RNA and DNA sequences has been modified to correctly identify them.
+if re.search('^[ACGTU]+$', args.seq):
+# If my sequence contain only ACGT is DNA
+    if 'T' in args.seq and 'U' not in args.seq:
+        print ('The sequence is DNA')
+# If my sequence contain only ACGU is RNA
+    elif 'U' in args.seq and 'T' not in args.seq:
+        print ('The sequence is RNA')
+# If my sequence contain U and T is not a RNA or DNA sequence
+    elif 'T' in args.seq and 'U' in args.seq:
+        print ('The sequence is not DNA or RNA')
+# If my sequence contain only ACG can be RNA or DNA
+    else:
+        print ('The sequence can be DNA or RNA')
+else:
+    print ('The sequence is not DNA nor RNA')
+
+# If a motif is provided, convert it to uppercase and search for it in the sequence
+if args.motif:
+    args.motif = args.motif.upper()
+    print(f'Motif search enabled: looking for motif "{args.motif}" in sequence "{args.seq}"... ', end = '')
+    if re.search(args.motif, args.seq):
+        print("The motif was FOUND")
+    else:
+        print("NOT FOUND")
+
+# Build the docker image
+
+docker build -t seqclass_image .
+
+# We check if the image is created correctly
+
+docker images
+
+# Now we use the seqClass file that allows us to classify fasta sequences and search motifs.
+
+## Help page
+
+docker run -it seqclass_image seqClass.py -h
+
+# Output
+#usage: seqClass.py [-h] -s SEQ [-m MOTIF]
+
+#Classify a sequence as DNA or RNA
+
+# options:
+  -h, --help            show this help message and exit
+  -s SEQ, --seq SEQ     Input sequence
+  -m MOTIF, --motif MOTIF
+                        Motif
+
+# Now we can use the file
+
+# DNA sequence:
+
+docker run -it seqclass_image seqClass.py -s "ATCGATCG"
+ 
+# Output 
+# The sequence is DNA
+
+# RNA sequence:
+
+docker run -it seqclass_image seqClass.py -s "AUCGAUCG"
+
+# Output 
+# The sequence is RNA
+
+# Not DNA nor RNA sequence:
+
+docker run -it seqclass_image seqClass.py -s "AUCGATCG"
+
+# Output 
+# The sequence is not DNA or RNA
+
+# Motif found it in the sequence:
+
+docker run -it seqclass_image seqClass.py -s "ATCGATCG" -m "AT"
+
+# Output 
+# The sequence is DNA
+# Motif search enabled: looking for motif "AT" in sequence "ATCGATCG"... The motif was FOUND
+
+# Motif not found it in the sequence:
+
+docker run -it seqclass_image seqClass.py -s "ATCGATCG" -m "AC"
+
+# Output 
+
+# The sequence is DNA
+# Motif search enabled: looking for motif "AC" in sequence "ATCGATCG"... NOT FOUND
+
+
+## Pushing the image to DockerHub
+
+# Log in inside the command window
+
+docker login
+
+# Output
+# Authenticating with existing credentials...
+# Login Succeeded
+
+# We change the name of the image
+
+docker tag seqclass_image paulaboldo/seqclass:tag
+
+# We push the image to the Docker cloud 
+
+docker push paulaboldo/seqclass:tag
+
+# Output
+# The push refers to repository [docker.io/paulaboldo/seqclass]
+# 9bc0fbcdcc45: Pushed
+# 49a26b4c6260: Pushed
+# b31057e02850: Pushed
+# 9c211bb78d23: Pushed
+# 3dd1a7b3caf3: Mounted from library/python
+# 349b0b22a493: Mounted from library/python
+# a07a24a37470: Mounted from library/python
+# 84f540ade319: Mounted from library/python
+# 9fe4e8a1862c: Mounted from library/python
+# 909275a3eaaa: Mounted from library/python
+# f3f47b3309ca: Mounted from library/python
+# 1a5fc1184c48: Mounted from library/python
+# tag: digest: sha256:86d39d10e630cda91b6a354e7db3bcf9e3570701290fa0525a4cb049231b1607 size: 2839
+
+## Result
+
+The image it can be found in the Docker repository. It has this name: seqclass  and this ID: 1ef42249dce63ec2aadb8dd6aa51356a54d1e3d25947822b7ebc8a09c4d8ea8f
+1ef42249dce6
+
+
