@@ -7,4 +7,4 @@ Repository of exercises from the epigenomics lectures within the Omics Data Anal
 
 2) 5 Distal regulatory activity of https://github.com/bborsari/epigenomics_uvic
 
-3) Docker exercise
+3) Docker exercise of https://github.com/dgarrimar/teaching_msc/wiki/3.-Docker-hands-on
