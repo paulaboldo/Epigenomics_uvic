@@ -194,9 +194,5 @@ docker push paulaboldo/seqclass:tag
 # 1a5fc1184c48: Mounted from library/python
 # tag: digest: sha256:86d39d10e630cda91b6a354e7db3bcf9e3570701290fa0525a4cb049231b1607 size: 2839
 
-## Result
-
-The image it can be found in the Docker repository. It has this name: seqclass  and this ID: 1ef42249dce63ec2aadb8dd6aa51356a54d1e3d25947822b7ebc8a09c4d8ea8f
-1ef42249dce6
 
 
